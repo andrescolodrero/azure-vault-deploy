@@ -1,0 +1,63 @@
+{
+    "min_packer_version": "0.12.0",
+    "variables": {
+      "subscription_id": "46377ae7-8adc-4f39-8422-84e58da0fcdc",
+      "client_id": "f60dbb32-6091-467a-b495-a88c058d5866",
+      "client_secret": "68a2d180-e497-4fca-86cc-4976c5b82f95",
+      "resource_group_name": "packer-test",
+      "consul_version": "0.9.2"
+    },
+    "builders": [
+      {
+        "type": "azure-arm",
+        "subscription_id": "{{user `subscription_id`}}",
+        "client_id": "{{user `client_id`}}",
+        "client_secret": "{{user `client_secret`}}",
+        "managed_image_resource_group_name": "images-rg",
+        "managed_image_name": "ubuntu-consul",
+  
+        "os_type": "Linux",
+        "image_publisher": "Canonical",
+        "image_offer": "UbuntuServer",
+        "image_sku": "16.04-LTS",
+  
+        "azure_tags": {
+          "dept": "Engineering",
+          "task": "Image deployment"
+        },
+  
+        "location": "west europe",
+        "vm_size": "Standard_B1ls"
+      }
+    ],
+    "provisioners": [
+      {
+        "type": "shell",
+        "inline": ["git clone --branch master https://github.com/hashicorp/terraform-azurerm-consul.git /tmp/terraform-azurerm-consul"],
+        "pause_before": "10s"
+      },
+      {
+        "type": "shell",
+        "execute_command": "chmod +x {{ .Path }}; {{ .Vars }} sudo -E sh '{{ .Path }}'",
+        "inline": [
+          "echo \"deb https://packages.microsoft.com/repos/azure-cli/ wheezy main\" | sudo tee /etc/apt/sources.list.d/azure-cli.list",
+          "apt-key adv --keyserver packages.microsoft.com --recv-keys 417A0893",
+          "apt-get update && apt-get install -y libssl-dev libffi-dev python-dev build-essential apt-transport-https azure-cli",
+          "DEBIAN_FRONTEND=noninteractive apt-get -y upgrade",
+  
+          "/tmp/terraform-azurerm-consul/modules/install-consul/install-consul --version {{user `consul_version`}}",
+          "/tmp/terraform-azurerm-consul/modules/install-dnsmasq/install-dnsmasq",
+          "/usr/sbin/waagent -force -deprovision+user && export HISTSIZE=0 && sync"
+        ],
+        "inline_shebang": "/bin/sh -x",
+        "pause_before": "30s"
+      }
+    ],
+    "post-processors": [
+      {
+        "type": "manifest",
+        "output": "manifest.json",
+        "strip_path": true
+      }
+    ]
+  }
